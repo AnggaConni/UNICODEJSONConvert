@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unicode Data Converter to JSON</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        :root {
+            --bg: #F3F4F6;
+            --surface: #FFFFFF;
+            --primary: #2563EB;
+            --text: #1F2937;
+            --border: #D1D5DB;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        h1 { margin: 0; font-size: 1.5rem; }
+        .subtitle { font-size: 0.9rem; color: #666; margin-top: 4px; }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0; /* Penting untuk scroll dalam flex */
+        }
+        
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+        }
+
+        .panel-header {
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        textarea {
+            flex: 1;
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            resize: none;
+            white-space: pre;
+            overflow: auto;
+        }
+        textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-outline:hover { background: #f9fafb; }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0 10px;
+        }
+
+        .error-msg {
+            color: #DC2626;
+            background: #FEE2E2;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            body { height: auto; }
+            textarea { min-height: 300px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>Unicode Data Transformer</h1>
+            <div class="subtitle">Convert Excel/Spreadsheet (TSV) to World Script Explorer JSON</div>
+        </div>
+        <button class="btn btn-outline" onclick="loadExample()">
+            <i class="ph ph-magic-wand"></i> Load Example
+        </button>
+    </header>
+
+    <div class="container">
+        <!-- INPUT -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>1. Paste Data (Excel/TSV)</span>
+                <span style="font-size:0.75rem; color:#666; font-weight:400;">Format: ISO | Code | Name_EN | Name_ID | Unicode | Range | Ver | Font | Sample</span>
+            </div>
+            <textarea id="inputData" placeholder="Paste your Excel columns here..."></textarea>
+            <div id="errorBox" class="error-msg"></div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="controls">
+            <button class="btn" onclick="convertData()">
+                Convert <i class="ph ph-arrow-right"></i>
+            </button>
+        </div>
+
+        <!-- OUTPUT -->
+        <div class="panel">
+            <div class="panel-header">
+                <span>2. Result (JSON)</span>
+                <button class="btn btn-outline" style="font-size:0.75rem; padding: 4px 8px;" onclick="copyResult()">
+                    <i class="ph ph-copy"></i> Copy
+                </button>
+            </div>
+            <textarea id="outputData" readonly placeholder="JSON Output will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // Data contoh untuk demo
+        const EXAMPLE_DATA = `ID\tLatn\tLatin (Alphabet)\tLatin (Alfabet)\tTRUE\t0020-007F\t1.0\tNoto+Sans\tAbcde
+ID\tPegon\tPegon\tAksara Pegon\tTRUE\t0600-06FF\t1.0\tNoto+Sans+Arabic\tڤيڮون
+ID\tJava\tJavanese\tAksara Jawa\tTRUE\tA980-A9DF\t5.2\tNoto+Sans+Javanese\tꦲꦏ꧀ꦱꦫꦗꦮ
+PH\tTglg\tBaybayin\tBaybayin\tTRUE\t1700-171F\t3.2\tNoto+Sans+Tagalog\tᜊᜌ᜔ᜊᜌ᜔`;
+
+        function loadExample() {
+            document.getElementById('inputData').value = EXAMPLE_DATA;
+        }
+
+        function convertData() {
+            const raw = document.getElementById('inputData').value;
+            const errorBox = document.getElementById('errorBox');
+            errorBox.style.display = 'none';
+            errorBox.innerText = '';
+
+            if (!raw.trim()) {
+                showError("Input is empty!");
+                return;
+            }
+
+            try {
+                const lines = raw.split('\n');
+                const resultDB = {};
+                let rowCount = 0;
+
+                lines.forEach((line, index) => {
+                    // Abaikan baris kosong
+                    if (!line.trim()) return;
+
+                    // Split berdasarkan Tab (\t) karena copy dari Excel biasanya pakai Tab
+                    // Jika user copy dari sumber lain yang pakai spasi banyak, kita coba regex, tapi default TSV paling aman
+                    let cols = line.split('\t');
+
+                    // Fallback: Jika tab tidak terdeteksi, coba deteksi spasi ganda (kurang akurat tapi membantu)
+                    if (cols.length < 2 && line.includes('  ')) {
+                         cols = line.split(/\s{2,}/);
+                    }
+
+                    // Validasi minimal kolom (ISO, Code, Name) harus ada
+                    if (cols.length < 3) {
+                        console.warn(`Skipping line ${index + 1}: Not enough columns.`);
+                        return;
+                    }
+
+                    // MAPPING KOLOM (Urutan Sangat Penting!)
+                    // 0: ISO (ID)
+                    // 1: Code (Latn)
+                    // 2: Name EN (Latin)
+                    // 3: Name ID (Latin)
+                    // 4: Unicode (TRUE)
+                    // 5: Range (0020-007F)
+                    // 6: Ver (1.0)
+                    // 7: Font (Noto+Sans)
+                    // 8: Sample (Abcde)
+
+                    const iso = cols[0]?.trim();
+                    const code = cols[1]?.trim();
+                    const name_en = cols[2]?.trim();
+                    const name_id = cols[3]?.trim();
+                    const unicodeRaw = cols[4]?.trim().toUpperCase();
+                    const range = cols[5]?.trim();
+                    const ver = cols[6]?.trim();
+                    const font = cols[7]?.trim();
+                    const sample = cols[8]?.trim();
+
+                    // Bersihkan data boolean
+                    const isUnicode = unicodeRaw === 'TRUE' || unicodeRaw === '1' || unicodeRaw === 'YES';
+
+                    // Buat object script
+                    const scriptObj = {
+                        code: code,
+                        name_en: name_en,
+                        name_id: name_id,
+                        unicode: isUnicode,
+                        range: (range === 'null' || range === '') ? null : range,
+                        ver: ver,
+                        font: (font === 'null' || font === '') ? null : font,
+                        sample: sample
+                    };
+
+                    // Masukkan ke dalam Grouping ISO
+                    if (!resultDB[iso]) {
+                        resultDB[iso] = [];
+                    }
+                    resultDB[iso].push(scriptObj);
+                    rowCount++;
+                });
+
+                if (rowCount === 0) {
+                    showError("No valid rows parsed. Make sure data is Tab-Separated (copied from Excel).");
+                    return;
+                }
+
+                // Output hasil
+                const jsonString = JSON.stringify(resultDB, null, 4); // Indentasi 4 spasi agar mudah dibaca
+                
+                // Tambahkan pembungkus variabel agar user tinggal copas total
+                const finalOutput = `const GLOBAL_SCRIPT_DB = ${jsonString};`;
+                
+                document.getElementById('outputData').value = finalOutput;
+
+            } catch (err) {
+                showError("Error parsing data: " + err.message);
+            }
+        }
+
+        function showError(msg) {
+            const box = document.getElementById('errorBox');
+            box.innerText = msg;
+            box.style.display = 'block';
+        }
+
+        function copyResult() {
+            const output = document.getElementById('outputData');
+            output.select();
+            document.execCommand('copy'); // Fallback klasik
+            
+            // Visual feedback
+            const btn = document.querySelector('.panel .btn-outline');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="ph ph-check"></i> Copied!';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
